@@ -1,3 +1,4 @@
+<!-- Modified 2026-11-06: personal workspace fork documentation and limitations. -->
 <p align="center">
   <img src="assets/logo.svg" alt="SnapBack — macOS window layout manager" width="120">
 </p>
@@ -20,6 +21,38 @@ You unplug your MacBook from your monitors and every window piles onto the lapto
 </p>
 
 Built on [Hammerspoon](https://www.hammerspoon.org/). Free and open source.
+
+## Personal workspace fork
+
+This fork preserves James Garside's SnapBack and Apache-2.0 notices. The
+[source assessment and implementation proposal](docs/WORKSPACE-ASSESSMENT.md)
+document the upstream architecture, matching, profiles, display identity, and
+Spaces limitations. The changes on `feat/workspace-profiles` extend existing
+named profiles with:
+
+* UUID-based display setup keys with non-destructive migration of recognizable
+  numeric-ID profiles; screen-relative frames that adapt to monitor rearrangement
+  and scaling. Profiles remain scoped to a connected set of displays.
+* Bundle/process-aware ID matching, with strong matches reserved before fuzzy
+  and same-app slot fallbacks. Ambiguous/missing monitor targets are skipped.
+* Checked, atomic JSON replacement; failed reads/writes cannot claim a successful
+  save. Empty captures and blank/control-character profile names are rejected.
+* **Ctrl+Alt+Cmd+N** for Save As and **Ctrl+Alt+Cmd+P** to choose a profile and
+  restore it. Existing shortcuts, snapping, menu, auto-restore modes, and both
+  URL schemes remain available.
+* Per-window restore results and a summary in Hammerspoon's Console. Inspect the
+  latest structured report with `hs.inspect(spoon.SnapBack.lastReport)`.
+
+The existing one-line installer and release links below still install the
+**upstream** version. To try this fork, check out `feat/workspace-profiles`, back
+up your existing Spoon and `~/.hammerspoon/snapback/`, then copy this checkout's
+`SnapBack.spoon` directory into `~/.hammerspoon/Spoons/`. Use the same `loadSpoon`
+and `start()` configuration shown under Manual install. No Hammerspoon config or
+live window layout was changed during development.
+
+Run `lua tests/run.lua` for the regression suite (Lua 5.4; no Hammerspoon needed).
+Hardware acceptance checks are in the assessment. Automated tests use fake macOS
+objects and do not prove private Spaces API compatibility on your Mac.
 
 ## Why SnapBack
 
@@ -76,6 +109,8 @@ Default base modifiers: **⌃⌥⌘** (Ctrl + Alt + Cmd) — customizable via **
 | :--- | :--- | :--- |
 | **Save Layout** | `S` | Save current window positions to the active profile |
 | **Restore Layout** | `R` or `⌫` | Restore the active profile |
+| **Save As** | `N` | Save the current layout under a new profile name |
+| **Choose Profile** | `P` | Search named profiles for this display setup and restore one |
 | **Left / Right Half** | `←` / `→` | Snap to half; keep pressing to walk across screens half-by-half |
 | **Top / Bottom Half** | `↑` / `↓` | Snap to top/bottom half (matches the menu; use macOS `⌘M` to minimize) |
 | **Corners** | `U` `I` `J` `K` | Top-left / top-right / bottom-left / bottom-right quarter |
@@ -112,7 +147,24 @@ Requires [Hammerspoon](https://www.hammerspoon.org/) (free) and Accessibility pe
 ## Known limitations
 
 * **Spaces**: Moving windows between Spaces relies on private macOS APIs and may fail silently on some macOS versions; windows on non-visible Spaces may not be capturable.
-* **Display identity**: Profiles are currently keyed by display IDs that can occasionally change across reboots; migration to stable UUIDs is planned.
+  This fork reports missing targets, returned errors, and unverified membership.
+  It retains a persistent window filter, but cannot discover every unvisited
+  Space. Visit relevant Spaces before saving; even a nonempty capture may be
+  incomplete. Fullscreen/tiled and sticky multi-Space windows remain unsupported
+  as reliable workspace state. Unknown membership is preserved as unknown.
+* **Space ordering**: New profiles prefer a Space ID only in the same Spoon
+  instance, then fall back to the ordinal among ordinary user Spaces. Reordering
+  Spaces after Hammerspoon reload/restart can change that ordinal's meaning.
+  No Spaces are created, reordered, or made active.
+* **Display identity**: UUIDs depend on the monitor/dock identities exposed by
+  macOS. If an old numeric-ID profile's IDs already changed, it cannot migrate
+  automatically; its original entry is retained. Identical display names cannot
+  safely disambiguate a missing UUID. A different connected set needs its own
+  saved profile; there is no automatic mapping to fewer/different monitors.
+* **Restore scope**: Closed apps/documents are not reopened. Duplicate titles and
+  fuzzy/slot matches can select a different same-app window. App size constraints
+  and delayed macOS updates can prevent an exact frame; results reflect immediate
+  observations after the move. Inspect diagnostics and retry when necessary.
 
 ## Alternatives
 

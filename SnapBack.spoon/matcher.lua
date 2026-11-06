@@ -1,4 +1,5 @@
 --- === SnapBack.matcher ===
+--- Modified 2026-11-06: application-safe IDs and global match-tier priority.
 ---
 --- Smart Matching: pairs saved windows with currently-open ones. Operates on
 --- plain records — {id, app, title} — never live hs.window objects, so the
@@ -7,6 +8,11 @@
 --- on a record (like a reference to the live window) pass through untouched.
 
 local matcher = {}
+
+local function sameApp(a, b)
+    if a.bundle_id and b.bundle_id then return a.bundle_id == b.bundle_id end
+    return a.app ~= nil and a.app == b.app
+end
 
 --- Normalize title for fuzzy matching (remove " - AppName", numbers, special chars)
 function matcher.normalizeTitle(title)
@@ -43,17 +49,19 @@ end
 --- savedWin: {id, app, title}; candidates: array of {id, app, title};
 --- usedIds: set of candidate ids already assigned.
 --- Returns candidate, matchType ("ID" | "Exact" | "Fuzzy" | "Slot") or nil.
-function matcher.findBestMatch(savedWin, candidates, usedIds)
-    -- 1. ID Match (Perfect)
+function matcher.findBestMatch(savedWin, candidates, usedIds, tier)
+    -- 1. ID Match (same application and process, when available)
     for _, cand in ipairs(candidates) do
-        if not usedIds[cand.id] and cand.id == savedWin.id then
+        if (not tier or tier == "ID") and not usedIds[cand.id] and cand.id == savedWin.id
+           and sameApp(savedWin, cand)
+           and (not savedWin.pid or not cand.pid or savedWin.pid == cand.pid) then
             return cand, "ID"
         end
     end
 
     -- 2. Exact Title Match (Good)
     for _, cand in ipairs(candidates) do
-        if not usedIds[cand.id] and cand.app and cand.app == savedWin.app
+        if (not tier or tier == "Exact") and not usedIds[cand.id] and sameApp(savedWin, cand)
            and cand.title == savedWin.title then
             return cand, "Exact"
         end
@@ -65,7 +73,7 @@ function matcher.findBestMatch(savedWin, candidates, usedIds)
     local savedNorm = matcher.normalizeTitle(savedWin.title)
 
     for _, cand in ipairs(candidates) do
-        if not usedIds[cand.id] and cand.app and cand.app == savedWin.app then
+        if (not tier or tier == "Fuzzy") and not usedIds[cand.id] and sameApp(savedWin, cand) then
             local score = matcher.similarity(savedNorm, matcher.normalizeTitle(cand.title))
             if score > 0.5 and score > bestScore then
                 bestScore = score
@@ -78,7 +86,7 @@ function matcher.findBestMatch(savedWin, candidates, usedIds)
 
     -- 4. App Slotting (Last Resort) — any unused window of the same app
     for _, cand in ipairs(candidates) do
-        if not usedIds[cand.id] and cand.app and cand.app == savedWin.app then
+        if (not tier or tier == "Slot") and not usedIds[cand.id] and sameApp(savedWin, cand) then
             return cand, "Slot"
         end
     end
@@ -87,22 +95,29 @@ function matcher.findBestMatch(savedWin, candidates, usedIds)
 end
 
 --- Pair every saved window with a candidate. Assignment bookkeeping lives
---- here — each candidate is used at most once, in saved-window order.
+--- here — stronger tiers are reserved across the whole layout before fallback.
+--- Results remain in saved-window order, each candidate used at most once.
 --- Returns:
 ---  * matches   - array of {saved, candidate, matchType}
 ---  * unmatched - array of saved windows with no candidate left
 function matcher.assign(savedWindows, candidates)
     local usedIds = {}
     local matches, unmatched = {}, {}
-
-    for _, saved in ipairs(savedWindows) do
-        local cand, matchType = matcher.findBestMatch(saved, candidates, usedIds)
-        if cand then
-            usedIds[cand.id] = true
-            table.insert(matches, { saved = saved, candidate = cand, matchType = matchType })
-        else
-            table.insert(unmatched, saved)
+    local assigned = {}
+    for _, tier in ipairs({"ID", "Exact", "Fuzzy", "Slot"}) do
+        for index, saved in ipairs(savedWindows) do
+            if not assigned[index] then
+                local cand, matchType = matcher.findBestMatch(saved, candidates, usedIds, tier)
+                if cand then
+                    usedIds[cand.id] = true
+                    assigned[index] = { saved = saved, candidate = cand, matchType = matchType }
+                end
+            end
         end
+    end
+    for index, saved in ipairs(savedWindows) do
+        if assigned[index] then table.insert(matches, assigned[index])
+        else table.insert(unmatched, saved) end
     end
 
     return matches, unmatched

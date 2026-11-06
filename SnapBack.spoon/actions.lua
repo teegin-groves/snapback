@@ -1,4 +1,5 @@
 --- === SnapBack.actions ===
+--- Modified 2026-11-06: keyboard access to Save As and profile selection.
 ---
 --- Action Registry: every user-facing action exists exactly once, as data.
 --- The menu, the hotkey bindings, and the cheat sheet all derive from
@@ -13,7 +14,7 @@
 ---  * key     - key bound with the base modifiers
 ---  * section - menu section (see actions.menuSections); nil = no menu row
 ---  * snap    - direction passed to snapWindow, or
----  * command - named command dispatched by init ("save" | "restore")
+---  * command - named profile command dispatched by init
 
 local actions = {}
 
@@ -41,6 +42,8 @@ actions.list = {
     -- Profiles (menu rows are placed by init in the profiles section)
     { id = "save",           name = "Save Current Layout",   label = "Save Current Layout", key = "S",                             command = "save" },
     { id = "restore",        name = "Restore Active Profile",                               key = "R",                             command = "restore" },
+    { id = "saveAs",         name = "Save as New Profile",   label = "Save as New Profile...", key = "N",                          command = "saveAs" },
+    { id = "chooseProfile",  name = "Choose Profile",        label = "Choose Profile...", key = "P",                             command = "chooseProfile" },
 }
 
 -- Menu section order; a separator follows each section

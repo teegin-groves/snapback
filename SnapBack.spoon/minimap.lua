@@ -1,4 +1,5 @@
 --- === SnapBack.minimap ===
+--- Modified 2026-11-06: preview shares display selection and restore geometry.
 ---
 --- Menu Minimap: a to-scale picture of the current display arrangement with
 --- the active profile's saved windows ghosted in, shown at the top of the
@@ -7,6 +8,9 @@
 --- Hammerspoon (hs.canvas).
 
 local minimap = {}
+local modulePath = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or ""
+local displays = dofile(modulePath .. "displays.lua")
+local geometry = dofile(modulePath .. "geometry.lua")
 
 local DEFAULTS = { width = 260, padding = 10, maxHeight = 150 }
 
@@ -62,20 +66,20 @@ function minimap.layout(screens, windows, opts)
         screens = {}, windows = {}, dropped = 0,
     }
 
-    local byKey = {}
     for _, s in ipairs(screens) do
         local rect = place(s)
         rect.name = s.name
         table.insert(plan.screens, rect)
-        if s.uuid then byKey[s.uuid] = rect end
-        if s.name and not byKey[s.name] then byKey[s.name] = rect end
     end
 
     for _, w in ipairs(windows or {}) do
-        local home = (w.screen_uuid and byKey[w.screen_uuid])
-                  or (w.screen and byKey[w.screen])
+        local screen = displays.resolve(w, screens)
+        local home = screen and place(screen)
         if home and w.frame then
-            local rect = place(w.frame)
+            -- Legacy previews retain their original clipping behavior; new
+            -- profiles use precisely the same target frame as restoration.
+            local frame = w.unit_frame and geometry.restoreFrame(w, screen.usable or screen) or w.frame
+            local rect = place(frame)
             -- Saved frames can overhang their screen (menubar inset, drags
             -- mid-flight); clamp so the picture never draws off-display
             local x2 = math.min(rect.x + rect.w, home.x + home.w)

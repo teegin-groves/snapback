@@ -1,4 +1,5 @@
 -- Profile Store spec: exercises the store through its interface only,
+-- Modified 2026-11-06: checked storage, migration and activation regressions.
 -- with in-memory adapters standing in for hs.json/hs.fs.
 
 return function(t, root)
@@ -22,7 +23,7 @@ return function(t, root)
                 reads[path] = reads[path] + 1
                 return deepcopy(files[path])
             end,
-            writeJson = function(data, path) files[path] = deepcopy(data) end,
+            writeJson = function(data, path) files[path] = deepcopy(data); return true end,
         }
         return store, files, reads
     end
@@ -108,5 +109,53 @@ return function(t, root)
         t.eq(files.profiles.cfg.windows, nil, "legacy key gone from disk")
         t.ok(files.profiles.cfg.layouts.Default, "legacy windows preserved as Default")
         t.ok(files.profiles.cfg.layouts.Coding, "new profile saved")
+    end)
+
+    t.test("setActive rejects unknown names without losing the active profile", function()
+        local store = fakeStore(nil, nil)
+        store:saveLayout("cfg", "Coding", {}, 1)
+        t.eq(store:setActive("cfg", "Typo"), false)
+        t.eq(store:activeProfileName("cfg"), "Coding")
+    end)
+
+    t.test("UUID migration copies legacy profiles and preserves the original", function()
+        local store, files = fakeStore({ old = { windows = {{app="Safari"}}, timestamp="old" } })
+        t.eq(store:migrateConfig("uuid:new", "old"), true)
+        t.eq(store:activeLayout("uuid:new").windows, {{app="Safari"}})
+        t.ok(files.profiles.old, "legacy entry retained")
+        t.eq(store:migrateConfig("uuid:new", "old"), false)
+    end)
+
+    t.test("UUID migration never overwrites an existing stable-key profile", function()
+        local store = fakeStore(nil, nil)
+        store:saveLayout("old", "Old", {}, 1)
+        store:saveLayout("new", "New", {}, 1)
+        t.eq(store:migrateConfig("new", "old"), false)
+        t.eq(store:profileNames("new"), {"New"})
+    end)
+
+    t.test("failed settings writes leave the cached settings unchanged", function()
+        local store = fakeStore(nil, {autoRestoreMode="prompt"})
+        store.deps.writeJson = function() return false end
+        t.eq(pcall(function() store:setSetting("autoRestoreMode", "auto") end), false)
+        t.eq(store:autoRestoreMode(), "prompt")
+        t.eq(pcall(function() store:saveLayout("cfg", "Coding", {}, 1) end), false)
+    end)
+
+    t.test("blank and control-character profile names are rejected", function()
+        local store = fakeStore(nil, nil)
+        for _, name in ipairs({"", "   ", "bad\nname"}) do
+            t.eq(pcall(function() store:saveLayout("cfg", name, {}, 1) end), false)
+        end
+        t.eq(store:profileNames("cfg"), {})
+    end)
+
+    t.test("invalid profile structures fail instead of being overwritten", function()
+        for _, profiles in ipairs({{cfg=false}, {cfg={layouts="bad"}},
+            {cfg={layouts={Coding={windows=false}}}}}) do
+            local store, files = fakeStore(profiles)
+            t.eq(pcall(function() store:saveLayout("cfg", "New", {}, 1) end), false)
+            t.eq(files.profiles, profiles)
+        end
     end)
 end

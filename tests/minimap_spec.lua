@@ -3,6 +3,7 @@
 -- stacked displays taller than the picture, and stale saved windows whose
 -- screen is no longer attached.
 
+-- Modified 2026-11-06: relative preview and ambiguous monitor regressions.
 return function(t, root)
     local minimap = dofile(root .. "SnapBack.spoon/minimap.lua")
 
@@ -97,6 +98,27 @@ return function(t, root)
         local plan = minimap.layout({ laptop }, { win }, { width = 260, padding = 10 })
         local w, s = plan.windows[1], plan.screens[1]
         t.ok(math.abs((w.x + w.w) - (s.x + s.w)) < 1e-9, "clamped at right edge")
+    end)
+
+    t.test("relative profiles preview the new usable-frame geometry", function()
+        local screen = {x=-2000,y=0,w=2000,h=1600,uuid="B",name="Dell",
+            usable={x=-2000,y=40,w=2000,h=1500}}
+        local win = {frame={x=1100,y=80,w=400,h=400},screen_uuid="B",
+            unit_frame={x=0.1,y=0.1,w=0.4,h=0.5}}
+        local plan = minimap.layout({screen},{win},{padding=10})
+        local rect = plan.windows[1]
+        t.eq(rect.x,10+200*plan.scale)
+        t.eq(rect.y,10+190*plan.scale)
+        t.eq(rect.w,800*plan.scale)
+        t.eq(rect.h,750*plan.scale)
+    end)
+
+    t.test("duplicate monitor names cannot produce a guessed preview", function()
+        local a = {x=0,y=0,w=1000,h=800,name="Dell",uuid="A"}
+        local b = {x=1000,y=0,w=1000,h=800,name="Dell",uuid="B"}
+        local plan = minimap.layout({a,b},{{frame={x=0,y=0,w=400,h=400},screen="Dell"}})
+        t.eq(plan.windows,{})
+        t.eq(plan.dropped,1)
     end)
 
     t.test("degenerate clamped windows are dropped", function()

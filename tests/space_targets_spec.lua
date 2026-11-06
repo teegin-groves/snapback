@@ -1,0 +1,28 @@
+return function(t, root)
+    local spaces = dofile(root .. "SnapBack.spoon/space_targets.lua")
+    local ids = {11,12,13}
+    local types = {[11]="user",[12]="fullscreen",[13]="user"}
+
+    t.test("Space ID hint survives reordering within the current session", function()
+        t.eq(spaces.resolve({space_id=13,space_session="current",space_user_index=1},ids,types,"current"),13)
+    end)
+    t.test("recycled Space IDs from another Spoon session cannot override the ordinal", function()
+        t.eq(spaces.resolve({space_id=13,space_session="previous",space_user_index=1},ids,types,"current"),11)
+    end)
+    t.test("user-Space ordinal fallback excludes fullscreen Spaces", function()
+        t.eq(spaces.resolve({space_id=99,space_user_index=2},ids,types),13)
+        t.eq(spaces.resolve({space_id=12,space_user_index=2},ids,types),13)
+        t.eq(spaces.resolve({space_user_index=3},ids,types),nil)
+    end)
+    t.test("legacy raw indices still work but cannot target fullscreen Spaces", function()
+        t.eq(spaces.resolve({space_index=3},ids,types),13)
+        t.eq(spaces.resolve({space_index=2},ids,types),nil)
+    end)
+    t.test("unknown membership or unavailable Space metadata never defaults to Space one", function()
+        local id, reason = spaces.resolve({},ids,types)
+        t.eq(id,nil)
+        t.eq(reason,"unknown_space")
+        t.eq(spaces.resolve({space_index=1},nil,types),nil)
+        t.eq(spaces.resolve({space_index=1},ids,{}),nil)
+    end)
+end

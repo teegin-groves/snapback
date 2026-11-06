@@ -1,5 +1,6 @@
 #!/usr/bin/env lua
 -- Plain-Lua test runner for SnapBack's pure modules. No Hammerspoon needed.
+-- Modified 2026-11-06: include persistence, display, Spaces and adapter tests.
 -- Usage: lua tests/run.lua
 
 local here = arg[0]:match("(.*[/\\])") or "./"
@@ -54,7 +55,8 @@ function t.test(name, fn)
     end
 end
 
-local specs = { "store_spec", "geometry_spec", "matcher_spec", "actions_spec", "minimap_spec" }
+local specs = { "store_spec", "geometry_spec", "matcher_spec", "actions_spec", "minimap_spec",
+    "displays_spec", "persistence_spec", "space_targets_spec", "workspace_spec" }
 
 for _, name in ipairs(specs) do
     print(name .. ":")

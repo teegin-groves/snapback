@@ -1,8 +1,31 @@
 # Changelog
 
+Modified 2026-11-06 to document the personal workspace fork; upstream release
+history is retained below.
+
 All notable changes to SnapBack are documented here. Every release must have
 an entry — the release workflow refuses to ship a tag that has no section in
 this file or whose version doesn't match `obj.version` in the Spoon.
+
+## Unreleased — personal workspace fork
+
+- Documented the upstream architecture and concrete multi-monitor/Spaces limits
+  in `docs/WORKSPACE-ASSESSMENT.md`, with a minimal implementation and hardware
+  acceptance plan.
+- Added stable UUID setup keys, retained recognizable legacy profiles, and saved
+  relative geometry so monitor arrangement/scaling changes target the right frame.
+- Fixed absolute-frame restoration ignoring the target display; skipped ambiguous
+  monitor fallbacks and shared relative geometry with minimap previews.
+- Required application/process identity for ID confidence, and reserved strong
+  matches across a layout before fuzzy/slot fallback.
+- Added keyboard Save As (`N`) and profile chooser (`P`) to the action registry.
+- Added atomic checked persistence, corrupt-data/empty-capture protection, profile
+  validation, structured diagnostics, and per-window failure isolation.
+- Preserved unknown Space membership; preferred only same-instance Space IDs,
+  excluded fullscreen Spaces from new ordinal selection, and reported failed or
+  unverified moves. Cross-Space restoration remains best-effort.
+- Extended the plain-Lua suite with storage/display/Space and Hammerspoon-boundary
+  regressions while retaining the existing tests and license notices.
 
 ## v0.6.0 — 2026-07-06
 

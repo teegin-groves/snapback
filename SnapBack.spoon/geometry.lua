@@ -1,4 +1,5 @@
 --- === SnapBack.geometry ===
+--- Modified 2026-11-06: screen-relative profile geometry and bounds checks.
 ---
 --- Snap Geometry: pure frame math for every snap direction, plus the
 --- cycle-detection decision. No Hammerspoon types cross this interface —
@@ -30,6 +31,39 @@ local FRACTIONS = {
 }
 
 geometry.directions = FRACTIONS
+
+local function validFrame(frame)
+    if type(frame) ~= "table" then return false end
+    for _, key in ipairs({"x", "y", "w", "h"}) do
+        local value = frame[key]
+        if type(value) ~= "number" or value ~= value or math.abs(value) == math.huge then
+            return false
+        end
+    end
+    return frame.w > 0 and frame.h > 0
+end
+
+function geometry.unitFrame(frame, screen)
+    assert(validFrame(frame) and validFrame(screen), "Invalid window/screen frame")
+    return { x = (frame.x - screen.x) / screen.w,
+             y = (frame.y - screen.y) / screen.h,
+             w = frame.w / screen.w, h = frame.h / screen.h }
+end
+
+function geometry.restoreFrame(saved, screen)
+    assert(validFrame(screen), "Invalid target screen frame")
+    local frame = saved.frame
+    if saved.unit_frame then
+        local unit = saved.unit_frame
+        assert(validFrame(unit), "Invalid saved unit frame")
+        frame = { x = screen.x + unit.x * screen.w, y = screen.y + unit.y * screen.h,
+                  w = unit.w * screen.w, h = unit.h * screen.h }
+    end
+    assert(validFrame(frame), "Invalid saved frame")
+    local w, h = math.min(frame.w, screen.w), math.min(frame.h, screen.h)
+    return { x = math.max(screen.x, math.min(frame.x, screen.x + screen.w - w)),
+             y = math.max(screen.y, math.min(frame.y, screen.y + screen.h - h)), w = w, h = h }
+end
 
 -- Pressing the same direction twice walks the window across screens column
 -- by column: a right-half window continues to the LEFT half of the screen

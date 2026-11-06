@@ -1,4 +1,5 @@
 -- Smart Matching spec: the full cascade (ID → exact → fuzzy → slot) over
+-- Modified 2026-11-06: identity reuse and global match-priority regressions.
 -- plain records — the part test_suite.lua could never reach when the
 -- matcher demanded live hs.window objects.
 
@@ -120,5 +121,44 @@ return function(t, root)
             { saved(1, "Chrome", "Docs") },
             { { id = 1, app = "Chrome", title = "Docs", win = liveWin } })
         t.eq(matches[1].candidate.win.marker, "live")
+    end)
+
+    t.test("reused window IDs cannot match another application", function()
+        local cand, kind = matcher.findBestMatch(saved(42, "Terminal", "job"),
+            {saved(42, "Safari", "job"), saved(7, "Terminal", "job")}, {})
+        t.eq(cand.id, 7)
+        t.eq(kind, "Exact")
+    end)
+
+    t.test("bundle identity survives renamed apps and rejects same-name apps", function()
+        local a = {id=1, app="Editor", bundle_id="app.editor", title="Doc"}
+        local wrong = {id=1, app="Editor", bundle_id="other.editor", title="Doc"}
+        local right = {id=3, app="Renamed Editor", bundle_id="app.editor", title="Doc"}
+        local cand, kind = matcher.findBestMatch(a, {wrong, right}, {})
+        t.eq(cand, right)
+        t.eq(kind, "Exact")
+    end)
+
+    t.test("ID confidence requires the same process when both PIDs are known", function()
+        local a = {id=1, app="Terminal", pid=100, title="job"}
+        local b = {id=1, app="Terminal", pid=200, title="job"}
+        local _, kind = matcher.findBestMatch(a, {b}, {})
+        t.eq(kind, "Exact")
+    end)
+
+    t.test("global priority reserves a later ID match before an earlier slot", function()
+        local matches = matcher.assign({saved(1,"Terminal","old"), saved(9,"Terminal","important")},
+            {saved(9,"Terminal","changed"), saved(8,"Terminal","scratch")})
+        t.eq(matches[1].candidate.id, 8)
+        t.eq(matches[2].candidate.id, 9)
+        t.eq(matches[2].matchType, "ID")
+    end)
+
+    t.test("global priority reserves exact titles before fuzzy matches", function()
+        local matches = matcher.assign({saved(1,"Browser","Project"), saved(2,"Browser","Project Plan")},
+            {saved(9,"Browser","Project Plan"), saved(8,"Browser","Project scratch")})
+        t.eq(matches[1].candidate.id, 8)
+        t.eq(matches[2].candidate.id, 9)
+        t.eq(matches[2].matchType, "Exact")
     end)
 end
